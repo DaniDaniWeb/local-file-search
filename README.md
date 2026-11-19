@@ -1,10 +1,10 @@
-# Локальный поиск файлов
+# Local File Search
 
-Приложение GTK 4 для Ubuntu с поиском по именам файлов, тексту PDF и Markdown и надписям на скриншотах. Результат содержит путь и фрагмент текста. Enter или щелчок открывает файл. Дополнительно можно подключить локальный поиск по смыслу и Qwen для перевода терминов запроса.
+A GTK 4 desktop app for finding files on Ubuntu. Search by filename, by text inside PDFs and Markdown documents, or by text extracted from screenshots. Each result shows the file path and a relevant excerpt when available. Optional features include local semantic search and query translation with Qwen.
 
-## Установка
+## Installation
 
-Нужны Ubuntu с GTK 4, Python 3.12 или новее, SQLite с FTS5, Poppler и Tesseract. GTK берётся из системных пакетов Ubuntu.
+You need Ubuntu with GTK 4, Python 3.12 or later, SQLite with FTS5, Poppler, and Tesseract. Install GTK and the OCR language packs from Ubuntu's package repositories.
 
 ```bash
 sudo apt install git python3-gi gir1.2-gtk-4.0 poppler-utils tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng
@@ -13,21 +13,25 @@ cd local-file-search
 /usr/bin/python3 app.py
 ```
 
-## Использование
+## Usage
 
-1. Нажми **«Обновить индекс»**, чтобы подготовить поиск.
-2. Введи имя файла, фразу или описание и нажми Enter. Например, `бюджет на месяц pdf` ограничит поиск PDF-файлами.
-3. Открой результат щелчком или выбери его стрелками и нажми Enter. Esc скрывает окно.
+The interface is in Russian. The English meanings of the relevant button labels are given below.
 
-Для ярлыка и горячей клавиши в GNOME запусти `/usr/bin/python3 install.py`. Команда печатает выбранное сочетание. В меню приложение называется **«Локальный поиск файлов»**. Ключ `--no-shortcut` устанавливает только ярлык.
+1. Click **Update Index** (`Обновить индекс`) to scan your folders.
+2. Enter a filename, a phrase, or a description and press Enter. For example, `monthly budget pdf` limits the results to PDFs.
+3. Click a result to open it, or use the arrow keys to select it and press Enter. Press Esc to hide the window.
 
-## Настройка папок
+To add a launcher and keyboard shortcut in GNOME, run `/usr/bin/python3 install.py`. The installer prints the assigned shortcut. Look for **Local File Search** (`Локальный поиск файлов`) in the application menu. Pass `--no-shortcut` to install just the launcher.
 
-По умолчанию индексируются существующие папки Downloads, Documents и Pictures/Screenshots в домашнем каталоге. Для других путей открой **«Настройки»**, измени список `folders` и снова обнови индекс. Каждый путь должен быть абсолютным или начинаться с `~/`. Индекс хранится в `~/.local/share/local-file-search-public/index.sqlite`, настройки в `~/.config/local-file-search-public/config.json`. При заданных переменных XDG приложение использует их.
+## Folder configuration
 
-## Поиск по смыслу
+By default, the app indexes the `Downloads`, `Documents`, and `Pictures/Screenshots` folders that exist in your home directory. To change the folders, open **Settings** (`Настройки`), edit the `folders` list, and update the index. Use absolute paths or paths starting with `~/`.
 
-Мультиязычная E5-small работает на CPU через ONNX Runtime. Установщик скачивает универсальный ONNX-файл и токенизатор, объём загрузки около 475 МБ. SHA-256 проверяется по закреплённой версии. После установки преобразование запросов и документов в эмбеддинги идёт локально.
+The index is stored in `~/.local/share/local-file-search-public/index.sqlite`. Settings are stored in `~/.config/local-file-search-public/config.json`. The app uses `XDG_DATA_HOME` and `XDG_CONFIG_HOME` if they are set.
+
+## Optional semantic search
+
+Multilingual E5-small runs on the CPU through ONNX Runtime. The setup script downloads the pinned ONNX model and tokenizer, about 475 MB in total, and verifies their SHA-256 checksums. Once installed, the app generates embeddings for queries and documents locally.
 
 ```bash
 sudo apt install python3-venv curl
@@ -37,11 +41,11 @@ sudo apt install python3-venv curl
 .venv/bin/python app.py
 ```
 
-Нажми **«Обновить индекс»**. Для запуска через меню с E5 зарегистрируй ярлык командой `.venv/bin/python install.py`. Она сохранит путь к этому интерпретатору. Если дистрибутив уже предоставляет NumPy, ONNX Runtime и SentencePiece для системного Python, можно установить эти пакеты из его репозитория и запустить все шаги через `/usr/bin/python3`. [Установка ONNX Runtime](https://onnxruntime.ai/docs/install/)
+Click **Update Index** (`Обновить индекс`) after launching. To use E5 when launching from the menu, run `.venv/bin/python install.py` so the launcher uses the virtual environment. If NumPy, ONNX Runtime, and SentencePiece are already installed for your system Python, you can use `/usr/bin/python3` directly. [ONNX Runtime installation guide](https://onnxruntime.ai/docs/install/)
 
-## Опциональная Qwen
+## Optional Qwen integration
 
-По умолчанию поле `qwen` равно `null`. Для перевода запросов укажи локальный сервер с совместимым API Chat Completions и имя модели, которую он обслуживает. Например, для Ollama с установленной Qwen конфиг может выглядеть так.
+The `qwen` setting defaults to `null`. To enable query translation, set the address of a local server with a compatible Chat Completions API and specify the model it serves. Here is an example for an Ollama server with Qwen installed.
 
 ```json
 {
@@ -53,28 +57,30 @@ sudo apt install python3-venv curl
 }
 ```
 
-Имя модели замени на точный тег своего сервера. Сервер настраивается и запускается отдельно. Приложение поддерживает HTTP на loopback, включая `127.0.0.1` и `::1`. При запросе модель получает только исходное описание и выражения для перевода. [Документация API Ollama](https://ollama.com/blog/openai-compatibility)
+Use the exact model tag exposed by your server. Set up and start the server separately. The app accepts loopback HTTP endpoints, including `127.0.0.1` and `::1`. The server receives only the query and the expressions to translate. [Ollama API documentation](https://ollama.com/blog/openai-compatibility)
 
-## Как устроен поиск
+## How search works
 
-SQLite FTS5 сначала выдаёт совпадения по словам. При ранжировании учитываются имя, порядок слов и близкая фраза с небольшими пропусками. Для скриншотов поиск допускает одну небольшую ошибку OCR в подтверждённой соседними словами фразе. Явные типы файлов ограничивают выдачу. Обычные файлы, включая исходники, ищутся по имени. Содержимое PDF доступно при наличии текстового слоя.
+SQLite FTS5 returns the initial keyword matches. Ranking takes filenames and word order into account, including phrases with small gaps. For screenshots, matching neighboring words can help the search tolerate a small OCR error. File type hints narrow the results. Source code files can be found by name. PDF content is searchable when the file has a text layer.
 
-Когда установлена E5, приложение добавляет похожие по смыслу названия и фрагменты. Qwen при включённой интеграции предлагает переводы конкретных терминов. Результаты объединяются по позициям. Кнопка **«Только исходные слова»** возвращает первоначальную выдачу. Индекс обновляется по изменениям файлов, а одинаковые фрагменты переиспользуют один вектор.
+With E5 installed, the app adds filenames and excerpts that are similar in meaning to the query. When enabled, Qwen suggests translations for individual search terms. The app combines the ranked results. Click **Original Words Only** (`Только исходные слова`) to return to the initial keyword results.
 
-## Проверка
+Index updates process new and changed files. Identical excerpts share a stored embedding.
+
+## Tests
 
 ```bash
 /usr/bin/python3 check_quality.py
 .venv/bin/python check_quality.py --semantic
 ```
 
-Демонстрация создаёт вымышленные документы и отдельную временную базу. Для полного набора тестов нужны Cairo, Pillow и NumPy. Команда использует окружение из раздела E5.
+The demo creates sample documents and a separate temporary database. The full test suite requires Cairo, Pillow, and NumPy. Use the virtual environment from the semantic search section.
 
 ```bash
 sudo apt install python3-cairo python3-pil fonts-dejavu-core
 .venv/bin/python -m unittest -v
 ```
 
-## Лицензия
+## License
 
-Код проекта распространяется по лицензии [MIT](LICENSE). Модели загружаются отдельно.
+The project code is available under the [MIT License](LICENSE). Models are downloaded separately.
