@@ -33,11 +33,11 @@ def install():
                             "--silent","--location","--retry","3","--connect-timeout","20","--max-time","600",
                             "--output",str(path),url], check=True)
             if sha256(path) != digest:
-                raise ValueError(f"Сумма SHA-256 для {name} не совпала")
+                raise ValueError(f"SHA-256 checksum mismatch for {name}")
             path.replace(dest)
         finally:
             path.unlink(missing_ok=True)
-    print(f"Локальная модель E5 готова: {MODEL_DIR}")
+    print(f"Local E5 model is ready at {MODEL_DIR}")
 
 
 if __name__ == "__main__":

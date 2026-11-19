@@ -24,6 +24,10 @@ SKIP = {".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "
 IMAGES = {"png", "jpeg", "jpg"}
 STOP = set("найди найти покажи где файл файлы мне мой мои моя с со к по для о на в из и или это про пожалуйста the of a for and скриншот скриншоты pdf png jpeg jpg markdown md".split())
 WORD = re.compile(r"[^\W_]+", re.UNICODE)
+SEARCH_REQUEST = re.compile(
+    r"^(?:найди(?:те)?|найти|покажи(?:те)?|ищу|find(?: me)?|show(?: me)?|look for|search for)\s+",
+    re.I,
+)
 
 
 def config():
@@ -33,9 +37,9 @@ def config():
             json.dump(DEFAULT, out, ensure_ascii=False, indent=2)
     data = json.loads(CONFIG.read_text())
     if not isinstance(data, dict):
-        raise ValueError("Настройки должны быть объектом JSON")
+        raise ValueError("Settings must be a JSON object")
     if not isinstance(data.get("folders"), list) or not all(isinstance(p, str) and Path(p).expanduser().is_absolute() for p in data["folders"]):
-        raise ValueError("folders должен содержать список абсолютных путей")
+        raise ValueError("The folders setting must list absolute paths or paths starting with ~/")
     if data.get("qwen") is not None:
         from qwen import settings
         settings(data["qwen"])
@@ -84,7 +88,7 @@ def refresh(db, folders, progress=lambda msg: None):
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise ValueError("Индекс уже обновляется") from None
+            raise ValueError("An index update is already running") from None
         seen, missed = set(), []
         queue = []
         known = {r["path"]: r for r in con.execute("SELECT * FROM files")}
@@ -132,7 +136,7 @@ def refresh(db, folders, progress=lambda msg: None):
         con.commit()
         errors = 0
         for i, (_,path,kind,ident) in enumerate(sorted(queue)):
-            progress(f"Извлечение текста · {i+1} из {len(queue)}")
+            progress(f"Extracting text · {i+1} из {len(queue)}")
             try:
                 body = extract(path, kind)
             except (OSError, subprocess.SubprocessError):
@@ -141,25 +145,30 @@ def refresh(db, folders, progress=lambda msg: None):
             with con:
                 con.execute("UPDATE docs SET body=? WHERE rowid=?", (body,ident))
                 con.execute("UPDATE files SET pending=0 WHERE id=?", (ident,))
-        return f"Файлов: {len(seen)} · извлечено: {len(queue)-errors} · ошибок извлечения: {errors} · недоступно путей: {len(missed)}"
+        return f"{len(seen)} files · Text extracted from {len(queue)-errors} · {errors} extraction errors · {len(missed)} unavailable paths"
 
 
 # Format words are constraints. Genre words still carry evidence (especially
 # in a title), but say little about the subject of a document.
-IMAGE_WORD = re.compile(r"(?:скриншот|скрин|изображени|картинк|фотографи|screenshot|image)(?:а|и|у|ы|е|я|ю|й|s)?$")
+IMAGE_WORD = re.compile(
+    r"(?:скриншот|скрин|изображени|картинк|фотографи|screenshot|image|photo|picture)"
+    r"(?:а|и|у|ы|е|я|ю|й|s)?$"
+)
 FILLER = STOP | set("""
     ищу искать ищи отыщи покажите нужен нужна нужно нужны этот эту эти мой мою
     где был была были там который которое которой котором которых которому
     помню написано написан надпись надписью надписями словом словами содержит
     можешь каком какие каким содержащий содержащая есть знаю забыл именно
     назывался называется при у об чтобы формата формате во экрана
-    about find my with the
+    about an at by can could contain contains containing file files find
+    for from i in is it look looking me my named need of on please says search
+    show that the these this those to want which with written you would
 """.split())
 LOG_FORMS = {"лог","логи","лога","логов","логом","логам","логами","логах"}
-GENRE = {"проект", "метод", "способ", "подход", "конспект", "учебник", "заметк", "лог", "текст", "книг", "документ", "запис", "материал"}
+GENRE = {"log", "note", "notes", "document", "book", "textbook", "проект", "метод", "способ", "подход", "конспект", "учебник", "заметк", "лог", "текст", "книг", "документ", "запис", "материал"}
 ENDING = re.compile(r"(иями|ами|ями|ыми|ими|ого|его|ому|ему|иях|ях|ах|ям|ам|ом|ем|ой|ей|ов|ые|ый|ий|ая|яя|ую|юю|ое|ие|ы|и|а|я|у|ю|е|о)$")
 MARKDOWN = {"md", "markdown"}
-FORMAT = {"pdf","пдф","пдфку","маркадаун","маркдаун","фото","снимок","screenshot"} | IMAGES | MARKDOWN
+FORMAT = {"pdf","pdfs","пдф","пдфку","маркадаун","маркдаун","фото","снимок","screenshot"} | IMAGES | MARKDOWN
 
 
 def words(text):
@@ -167,6 +176,8 @@ def words(text):
 
 
 def stem(word):
+    if word == "logs":
+        return "log"
     if len(word) >= 5 and re.fullmatch("[а-я]+", word):
         word = ENDING.sub("", word)
         # Productive borrowed nouns such as рекрутинг / рекрутер.
@@ -185,11 +196,11 @@ def requested_types(query):
     kinds = vocabulary & (IMAGES | {"pdf"})
     if "jpeg" in kinds:
         kinds.add("jpg")
-    if vocabulary & {"пдф","пдфку"}:
+    if vocabulary & {"pdfs","пдф","пдфку"}:
         kinds.add("pdf")
     if vocabulary & {"md","markdown","маркдаун","маркадаун"}:
         kinds.update(MARKDOWN)
-    if not kinds & IMAGES and (vocabulary & {"фото","снимок"} or any(IMAGE_WORD.fullmatch(w) for w in vocabulary)):
+    if not kinds and (vocabulary & {"фото","снимок"} or any(IMAGE_WORD.fullmatch(w) for w in vocabulary)):
         kinds.update(IMAGES)
     return kinds
 
@@ -215,6 +226,8 @@ class Form:
             variant += [w[:i]+"ё"+w[i+1:] for i,c in enumerate(w) if c=="е"][:2]
         if w == "лог" and not self.translated:
             variant = sorted(LOG_FORMS)
+        if w == "log":
+            variant = ["log", "logs"]
         prefix = "*" if len(w) >= 4 else ""
         return "("+" OR ".join('"'+v+'"'+prefix for v in variant)+")"
 
@@ -223,6 +236,8 @@ class Form:
             w = self.phrase[0]
             if w == "лог" and not self.translated:
                 return not LOG_FORMS.isdisjoint(passage)
+            if w == "log":
+                return "log" in passage or "logs" in passage
             if len(w) >= 4:
                 return any(token.startswith(w) for token in passage)
             return w in passage

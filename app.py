@@ -28,7 +28,7 @@ def background(fn):
 def open_file(path):
     file = Path(path)
     if not file.is_file():
-        raise ValueError("Файл перемещён или удалён. Обнови индекс.")
+        raise ValueError("This file has moved or been deleted. Update the index.")
     return Gio.AppInfo.launch_default_for_uri(file.as_uri(), None)
 
 
@@ -58,28 +58,28 @@ class SearchApp(Gtk.Application):
             try:
                 catalog.config()
             except (ValueError, OSError) as exc:
-                self.note.set_text("Настройки: " + str(exc))
+                self.note.set_text("Settings · " + str(exc))
         self.window.present()
         self.open_on_enter = False
         self.entry.grab_focus()
         self.entry.select_region(0,-1)
 
     def build(self):
-        self.window = Gtk.ApplicationWindow(application=self,title="Поиск файлов")
+        self.window = Gtk.ApplicationWindow(application=self,title="Local File Search")
         self.window.set_default_size(680,475)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=9)
         for side in ("top","bottom","start","end"):
             getattr(box,"set_margin_"+side)(14)
         self.window.set_child(box)
         self.window.connect("close-request",self.hide_window)
-        self.entry = Gtk.Entry(placeholder_text="Какой файл найти?",max_length=2000)
+        self.entry = Gtk.Entry(placeholder_text="Search by filename, text, or description",max_length=2000)
         self.entry.connect("activate",self.submit)
         box.append(self.entry)
-        self.note = Gtk.Label(label="Введи описание файла и нажми Enter",xalign=0,wrap=True)
+        self.note = Gtk.Label(label="Enter a query and press Enter",xalign=0,wrap=True)
         self.note.set_lines(2)
         self.note.set_ellipsize(Pango.EllipsizeMode.END)
         box.append(self.note)
-        self.direct_only = Gtk.ToggleButton(label="Только исходные слова")
+        self.direct_only = Gtk.ToggleButton(label="Original Words Only")
         self.direct_only.set_halign(Gtk.Align.START)
         self.direct_only.connect("toggled", self.change_view)
         self.direct_only.set_visible(False)
@@ -97,21 +97,21 @@ class SearchApp(Gtk.Application):
         except (ImportError, RuntimeError):
             indexed = 0
         if count:
-            message = f"Файлов: {count}"
+            message = f"{count} files indexed"
             if encoder.available():
-                message += f" · смысловой индекс: {indexed}"
+                message += f" · {indexed} indexed for semantic search"
             if encoder.available() and indexed < count:
-                message += " · обнови индекс для полного охвата"
+                message += " · Update the index to include all files"
         else:
-            message = "Для первого поиска обнови индекс"
+            message = "Update the index to start searching"
         self.index_note.set_text(message)
         box.append(self.index_note)
         buttons = Gtk.Box(spacing=8)
         box.append(buttons)
-        self.update = Gtk.Button(label="Обновить индекс")
+        self.update = Gtk.Button(label="Update Index")
         self.update.connect("clicked",self.refresh)
         buttons.append(self.update)
-        settings = Gtk.Button(label="Настройки")
+        settings = Gtk.Button(label="Settings")
         settings.connect("clicked",self.settings)
         buttons.append(settings)
         keys = Gtk.EventControllerKey()
@@ -126,7 +126,7 @@ class SearchApp(Gtk.Application):
         try:
             editor = Gio.AppInfo.get_default_for_type("text/plain",False)
             if not editor:
-                raise ValueError("Установи текстовый редактор для настроек")
+                raise ValueError("Install a text editor to edit the settings.")
             editor.launch([Gio.File.new_for_path(str(catalog.CONFIG))],None)
         except Exception as exc:
             self.note.set_text(str(exc))
@@ -142,7 +142,7 @@ class SearchApp(Gtk.Application):
 
     def refresh(self,*_):
         self.update.set_sensitive(False)
-        self.index_note.set_text("Обход папок…")
+        self.index_note.set_text("Scanning folders…")
         def work():
             try:
                 progress = lambda s: later(self.index_note.set_text,s)
@@ -151,7 +151,7 @@ class SearchApp(Gtk.Application):
                     if encoder.available():
                         msg += " · " + vectors.refresh(catalog.DB,progress)
                 except Exception as exc:
-                    msg += " · Индекс по смыслу: " + str(exc)
+                    msg += " · Semantic indexing · " + str(exc)
             except Exception as exc:
                 msg = str(exc)
             later(self.index_note.set_text,msg)
@@ -181,7 +181,7 @@ class SearchApp(Gtk.Application):
         self.direct_only.set_active(False)
         self.list.remove_all()
         self.note.set_tooltip_text(None)
-        self.note.set_text("Поиск по индексу…")
+        self.note.set_text("Searching the index…")
         def publish(fn,*args):
             later(lambda: fn(*args) if serial == self.serial else None)
         def work():
@@ -189,11 +189,11 @@ class SearchApp(Gtk.Application):
                 rows = catalog.search(catalog.DB,query)
                 if rows and Path(rows[0]["path"]).name.casefold() == query.casefold():
                     publish(self.render,rows)
-                    publish(self.note.set_text,"Точное имя файла")
+                    publish(self.note.set_text,"Exact filename match")
                     return
                 publish(self.show_direct, rows)
                 if not catalog.tokens(query):
-                    publish(self.note.set_text,"По формату файла")
+                    publish(self.note.set_text,"Matching file type")
                     return
                 if encoder.available():
                     background(semantic_work)
@@ -201,7 +201,7 @@ class SearchApp(Gtk.Application):
                 if options is None:
                     return
                 model = options["model"]
-                publish(self.model_state,"Ожидание перевода · " + model)
+                publish(self.model_state,"Waiting for translation · " + model)
                 with self.model_lock:
                     if serial != self.serial:
                         return
@@ -236,7 +236,7 @@ class SearchApp(Gtk.Application):
                     found = vectors.search(catalog.DB, query)
                 publish(self.show_semantic,found)
             except Exception as exc:
-                publish(self.show_semantic,[],"Поиск по смыслу: "+str(exc))
+                publish(self.show_semantic,[],"Semantic search · "+str(exc))
         background(work)
 
     def model_state(self, status):
@@ -245,7 +245,7 @@ class SearchApp(Gtk.Application):
 
     def show_semantic(self, rows, status=None):
         self.semantic_rows = rows
-        self.vector_status = status or ("Поиск по смыслу" if rows else "")
+        self.vector_status = status or ("Semantic search" if rows else "")
         self.update_views()
 
     def show_direct(self, rows):
@@ -253,18 +253,18 @@ class SearchApp(Gtk.Application):
         self.translated_rows = rows
         self.qwen_status = ""
         self.render(rows)
-        self.note.set_text("По исходным словам")
+        self.note.set_text("Original query")
 
     def show_expanded(self, rows, terms, model):
         self.translated_rows = rows
         pairs = [f"{word} → {', '.join(aliases)}" for word,aliases in terms.items()]
-        self.qwen_status = model + (" · " + " · ".join(pairs) if pairs else " · по исходным словам")
+        self.qwen_status = model + (" · " + " · ".join(pairs) if pairs else " · original query")
         self.update_views()
 
     def show_translated_semantic(self, rows, error=""):
         self.translated_semantic = rows
         if error:
-            self.vector_status = "Поиск по смыслу: " + error
+            self.vector_status = "Semantic search · " + error
         self.update_views()
 
     def update_views(self):
@@ -286,9 +286,9 @@ class SearchApp(Gtk.Application):
     def update_note(self):
         original = self.direct_only.get_active()
         rows = self.direct_rows if original else self.expanded_rows
-        status = (" · ".join(filter(None,(self.vector_status,self.qwen_status))) if not original else "") or "По исходным словам"
+        status = (" · ".join(filter(None,(self.vector_status,self.qwen_status))) if not original else "") or "Original query"
         if rows and all(row["weak"] for row in rows) and not any(row.get("semantic") for row in rows):
-            status = "Только частичные совпадения · " + status
+            status = "Partial matches only · " + status
         self.note.set_text(status)
         self.note.set_tooltip_text(status)
 
@@ -298,7 +298,7 @@ class SearchApp(Gtk.Application):
         focused = self.window.get_focus()
         keep_focus = focused and focused.is_ancestor(self.list)
         self.list.remove_all()
-        self.list.set_placeholder(Gtk.Label(label="В индексе нет совпадений по этому запросу"))
+        self.list.set_placeholder(Gtk.Label(label="No files match this query"))
         chosen = None
         for result in rows:
             row = Gtk.ListBoxRow()
@@ -307,17 +307,17 @@ class SearchApp(Gtk.Application):
             info.set_margin_top(4)
             info.set_margin_bottom(4)
             row.set_child(info)
-            date = datetime.datetime.fromtimestamp(result["mtime"]/1e9).strftime("%d.%m.%Y %H:%M")
+            date = datetime.datetime.fromtimestamp(result["mtime"]/1e9).strftime("%Y-%m-%d %H:%M")
             lines = [(Path(row.path).name,"heading"),(row.path+"  ·  "+date,"dim-label")]
             if result["excerpt"]:
                 lines.append((" ".join(result["excerpt"].split()),"caption"))
             if result.get("semantic"):
-                lines.append(("Похожий по смыслу фрагмент","dim-label"))
+                lines.append(("Semantically similar excerpt","dim-label"))
             elif result["weak"]:
-                reason = "Неуверенное совпадение"
+                reason = "Low-confidence match"
                 missing = result.get("missing_anchors", ())
                 if missing:
-                    reason += " · нет подтверждения для " + ", ".join(f"«{w}»" for w in missing)
+                    reason += " · No evidence for " + ", ".join(f'“{w}”' for w in missing)
                 lines.append((reason,"warning"))
             for value,style in lines:
                 label = Gtk.Label(label=value,xalign=0,ellipsize=Pango.EllipsizeMode.END)

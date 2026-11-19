@@ -27,11 +27,11 @@ class Encoder:
             import onnxruntime as ort
             import sentencepiece as spm
         except ImportError as exc:
-            raise RuntimeError("Для смыслового поиска установи зависимости из requirements-semantic.txt") from exc
+            raise RuntimeError("Install the dependencies in requirements-semantic.txt to use semantic search") from exc
         model = MODEL_DIR / MODEL_FILE
         vocabulary = MODEL_DIR / TOKENIZER_FILE
         if not (model.is_file() and vocabulary.is_file()):
-            raise RuntimeError("Установи локальную модель командой python setup_encoder.py")
+            raise RuntimeError("Run python setup_encoder.py to install the local model")
 
         self.tokenizer = spm.SentencePieceProcessor(model_file=str(vocabulary))
         ort.disable_telemetry_events()

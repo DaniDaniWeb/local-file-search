@@ -53,7 +53,7 @@ def _encode(texts, query=False):
         values = np.asarray(_loaded_encoder().encode(texts, query=query), dtype=np.float32)
     if (values.ndim != 2 or values.shape[0] != len(texts)
             or values.shape[1] == 0 or not np.isfinite(values).all()):
-        raise ValueError("Некорректные векторы модели поиска")
+        raise ValueError("The embedding model returned invalid vectors")
     norms = np.linalg.norm(values, axis=1, keepdims=True)
     return values / np.maximum(norms, 1e-12)
 
@@ -123,7 +123,7 @@ def _flush(con, items, model, version, progress):
                     VALUES(?,?,?,?)""", (model,digest,texts[digest],embedding.astype("<f2").tobytes()))
                 cache[digest] = inserted.lastrowid
         if len(missing) > 4 * BATCH:
-            progress(f"Фрагменты: {min(i+BATCH,len(missing))} из {len(missing)}")
+            progress(f"Excerpts embedded · {min(i+BATCH,len(missing))} of {len(missing)}")
     # Attach all passages for each file in one transaction. A simultaneous
     # text refresh can invalidate a file while the CPU is working.
     with con:
@@ -152,7 +152,7 @@ def refresh(db, progress=lambda msg: None):
         except BlockingIOError:
             # The parallel caller may have just committed new OCR/text. Take
             # another snapshot after the running build so those changes stick.
-            progress("Ожидание текущего обновления смыслового индекса")
+            progress("Waiting for the current semantic index update")
             fcntl.flock(lock,fcntl.LOCK_EX)
         con.executescript(_SCHEMA)
         rows = con.execute(f"""SELECT f.* FROM files f LEFT JOIN vector_files s
@@ -171,7 +171,7 @@ def refresh(db, progress=lambda msg: None):
                 bundle.append((row,content[0]))
                 volume += len(content[0])
             if bundle and (len(bundle)>=24 or volume>=30_000 or i==len(rows)):
-                progress(f"Смысловой индекс · файлы {i-len(bundle)+1}–{i} из {len(rows)}")
+                progress(f"Semantic indexing · Files {i-len(bundle)+1}–{i} of {len(rows)}")
                 _flush(con,bundle,MODEL_ID,version,progress)
                 bundle.clear()
                 volume = 0
@@ -181,7 +181,7 @@ def refresh(db, progress=lambda msg: None):
             con.execute("DELETE FROM vector_links WHERE file_id NOT IN (SELECT file_id FROM vector_files)")
             con.execute("DELETE FROM vector_cache WHERE id NOT IN (SELECT cache_id FROM vector_links)")
     files, count = status(db)
-    return f"Смысловой индекс · файлов {files} · фрагментов {count}"
+    return f"Semantic index · {files} files · {count} excerpts"
 
 
 def search(db, query, limit=20, *, description=None):
@@ -196,10 +196,14 @@ def search(db, query, limit=20, *, description=None):
         con.execute("BEGIN")
         kinds = sorted(catalog.requested_types(query))
         description = (description or query).strip()
-        description = re.sub(r"^(?:найди(?:те)?|покажи(?:те)?|ищу|find)\s+", "", description, flags=re.I)
+        description = catalog.SEARCH_REQUEST.sub("", description)
         if not catalog.tokens(description):
             return []
-        description = re.sub(r"^(?:pdf|markdown|скриншот|файл)\s+(?:(?:с|про|по)\s+)?","",description,flags=re.I)
+        description = re.sub(
+            r"^(?:(?:a|an|the)\s+)?(?:pdfs?|markdown|screenshots?|image|photo|file|скриншот|файл)"
+            r"\s+(?:(?:with|about|on|of|с|про|по)\s+)?",
+            "", description, flags=re.I,
+        )
         kind_sql = (" AND f.kind IN (" + ",".join("?" for _ in kinds) + ")") if kinds else ""
         meta = {r["id"]:dict(r) for r in con.execute(f"""SELECT f.* FROM files f
             JOIN vector_files s ON {_STAMP} WHERE s.version=? {kind_sql}""",(_version(),*kinds))}
@@ -262,7 +266,7 @@ def search(db, query, limit=20, *, description=None):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Обновить локальный смысловой индекс")
+    parser = argparse.ArgumentParser(description="Update the local semantic index")
     parser.add_argument("--db", type=Path, default=catalog.DB)
     args = parser.parse_args()
     os.umask(0o077)

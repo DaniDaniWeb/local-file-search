@@ -7,17 +7,17 @@ from urllib.parse import urlsplit
 
 def settings(value):
     if not isinstance(value, dict):
-        raise ValueError("qwen должен быть объектом с полями base_url и model или null")
+        raise ValueError("The qwen setting must be null or an object with base_url and model")
     base, model = value.get("base_url"), value.get("model")
     if not isinstance(model, str) or not model.strip():
-        raise ValueError("В qwen.model укажи имя загруженной модели")
+        raise ValueError("Set qwen.model to the name of the model served locally")
     if not isinstance(base, str):
-        raise ValueError("В qwen.base_url укажи локальный URL")
+        raise ValueError("Set qwen.base_url to a local HTTP URL")
     url = urlsplit(base)
     host = url.hostname
     if (url.scheme != "http" or host not in ("localhost", "127.0.0.1", "::1")
             or url.username is not None or url.query or url.fragment or url.port == 0):
-        raise ValueError("Qwen принимает только локальный HTTP-адрес без учётных данных")
+        raise ValueError("Qwen requires a loopback HTTP URL without credentials, a query, or a fragment")
     return ("127.0.0.1" if host == "localhost" else host), url.port or 80, url.path.rstrip("/"), model.strip()
 
 
@@ -27,7 +27,9 @@ NON_SUBJECT = set("""
     найди найти покажи отыщи поищи хочу нужна нужен нужно мой моя мне файл файлы
     где про по на с со в и о об от до из для между после перед при к за или а во pdf png jpeg jpg md markdown документ
     скачать пожалуйста ищу страницы скан пдф фото снимок
-    find search file image screenshot notes textbook picture document about on with of the for a
+    find search show look file files image images screenshot screenshots photo photos
+    note notes textbook picture pictures document about on with of the for a an in
+    containing contains please can could you i me my named called where which is
 """.split())
 MEDIUM = ("скриншот", "конспект", "учебник", "картинк", "фотограф", "документ", "заметк")
 WORD = re.compile(r"[^\W_]+")
@@ -89,7 +91,7 @@ def aliases_from_reply(reply, query, ids=None):
         clean = re.sub(r"^```(?:json)?\s*|\s*```$", "", clean, flags=re.I)
     obj = json.loads(clean)
     if not isinstance(obj, dict):
-        raise ValueError("Qwen вернула некорректный словарь переводов")
+        raise ValueError("Qwen returned an invalid translation map")
 
     aliases = {}
     for source, translations in obj.items():
@@ -129,15 +131,16 @@ def expand(query, options, status):
     if not ids:
         return {}, ""
     host, port, path, model = settings(options)
-    status("Qwen подбирает переводы · " + model)
+    status("Qwen is translating search terms · " + model)
     prompt = (
-        "Переведи каждое пронумерованное выражение с русского на английский или наоборот. "
-        "Учитывай смысл выражения в полном запросе и технический сленг. Для латинских аббревиатур "
-        "дай общепринятую расшифровку на английском. Сохрани имена собственные. "
-        "Верни только JSON с теми же номерами и одним коротким переводом на номер. "
-        'Пример: {"1":"цепям поставок","2":"CPU"} → {"1":"supply chain","2":"central processing unit"}. '
-        "Полный запрос для контекста: " + json.dumps(query[:2000], ensure_ascii=False) + ". "
-        "Выражения для перевода: "
+        "Translate each numbered expression from English to Russian or from Russian to English. "
+        "Use the full query to interpret the meaning and any technical jargon. Expand Latin-letter "
+        "abbreviations into their established English names and preserve proper names. "
+        "Return only a JSON object with the same numbered keys and one short translation per key. "
+        'For example, {"1":"supply chain","2":"CPU"} becomes '
+        '{"1":"цепочка поставок","2":"central processing unit"}. '
+        "Full query for context. " + json.dumps(query[:2000], ensure_ascii=False) + ". "
+        "Expressions to translate. "
         + json.dumps(ids, ensure_ascii=False)
     )
     payload = json.dumps({
@@ -149,13 +152,13 @@ def expand(query, options, status):
         conn.request("POST", path + "/chat/completions", payload, {"Content-Type": "application/json"})
         response = conn.getresponse()
         if response.status != 200:
-            raise ValueError(f"Сервер модели ответил HTTP {response.status}")
+            raise ValueError(f"The model server returned HTTP {response.status}")
         result = json.loads(response.read(262144))
         message = result["choices"][0]["message"]["content"]
         if not isinstance(message, str):
-            raise ValueError("Модель не вернула текст перевода")
+            raise ValueError("The model did not return translation text")
         return aliases_from_reply(message, query, ids), ""
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-        raise ValueError("Модель вернула некорректный ответ") from exc
+        raise ValueError("The model returned an invalid response") from exc
     finally:
         conn.close()

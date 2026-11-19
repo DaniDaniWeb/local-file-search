@@ -17,7 +17,7 @@ from catalog import APP_ID
 
 SCHEMA = "org.gnome.settings-daemon.plugins.media-keys"
 PREFIX = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/"
-LABEL = "Локальный поиск файлов"
+LABEL = "Local File Search"
 
 
 def desktop_arg(value):
@@ -59,7 +59,7 @@ def install_shortcut(argv):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--no-shortcut", action="store_true", help="Установить только ярлык")
+    parser.add_argument("--no-shortcut", action="store_true", help="Install only the launcher")
     options = parser.parse_args()
     app = Path(__file__).resolve().with_name("app.py")
     args = [sys.executable, str(app)]
@@ -68,7 +68,7 @@ def main():
     (apps / (APP_ID + ".desktop")).write_text(
         "[Desktop Entry]\nType=Application\n"
         f"Name={LABEL}\n"
-        "Comment=Поиск документов и текста на изображениях\nIcon=system-search\n"
+        "Comment=Search documents and text in images\nIcon=system-search\n"
         f"Exec={' '.join(desktop_arg(arg) for arg in args)}\n"
         "Terminal=false\nCategories=Utility;GTK;\nStartupNotify=true\n", encoding="utf-8")
     shortcut = install_shortcut(args) if not options.no_shortcut else None

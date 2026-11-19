@@ -4,7 +4,7 @@ A GTK 4 desktop app for finding files on Ubuntu. Search by filename, by text ins
 
 ## Installation
 
-You need Ubuntu with GTK 4, Python 3.12 or later, SQLite with FTS5, Poppler, and Tesseract. Install GTK and the OCR language packs from Ubuntu's package repositories.
+You need Ubuntu with GTK 4, Python 3.12 or later, SQLite with FTS5, Poppler, and Tesseract. Install GTK and the English and Russian OCR language packs from Ubuntu's package repositories.
 
 ```bash
 sudo apt install git python3-gi gir1.2-gtk-4.0 poppler-utils tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng
@@ -15,17 +15,15 @@ cd local-file-search
 
 ## Usage
 
-The interface is in Russian. The English meanings of the relevant button labels are given below.
-
-1. Click **Update Index** (`Обновить индекс`) to scan your folders.
+1. Click **Update Index** to scan your folders.
 2. Enter a filename, a phrase, or a description and press Enter. For example, `monthly budget pdf` limits the results to PDFs.
 3. Click a result to open it, or use the arrow keys to select it and press Enter. Press Esc to hide the window.
 
-To add a launcher and keyboard shortcut in GNOME, run `/usr/bin/python3 install.py`. The installer prints the assigned shortcut. Look for **Local File Search** (`Локальный поиск файлов`) in the application menu. Pass `--no-shortcut` to install just the launcher.
+To add a launcher and keyboard shortcut in GNOME, run `/usr/bin/python3 install.py`. The installer prints the assigned shortcut. Look for **Local File Search** in the application menu. Pass `--no-shortcut` to install just the launcher. Rerun the installer after updating to refresh an existing launcher and keep its assigned shortcut.
 
 ## Folder configuration
 
-By default, the app indexes the `Downloads`, `Documents`, and `Pictures/Screenshots` folders that exist in your home directory. To change the folders, open **Settings** (`Настройки`), edit the `folders` list, and update the index. Use absolute paths or paths starting with `~/`.
+By default, the app indexes the `Downloads`, `Documents`, and `Pictures/Screenshots` folders that exist in your home directory. To change the folders, open **Settings**, edit the `folders` list, and update the index. Use absolute paths or paths starting with `~/`.
 
 The index is stored in `~/.local/share/local-file-search-public/index.sqlite`. Settings are stored in `~/.config/local-file-search-public/config.json`. The app uses `XDG_DATA_HOME` and `XDG_CONFIG_HOME` if they are set.
 
@@ -41,7 +39,7 @@ sudo apt install python3-venv curl
 .venv/bin/python app.py
 ```
 
-Click **Update Index** (`Обновить индекс`) after launching. To use E5 when launching from the menu, run `.venv/bin/python install.py` so the launcher uses the virtual environment. If NumPy, ONNX Runtime, and SentencePiece are already installed for your system Python, you can use `/usr/bin/python3` directly. [ONNX Runtime installation guide](https://onnxruntime.ai/docs/install/)
+Click **Update Index** after launching. To use E5 when launching from the menu, run `.venv/bin/python install.py` so the launcher uses the virtual environment. If NumPy, ONNX Runtime, and SentencePiece are already installed for your system Python, you can use `/usr/bin/python3` directly. [ONNX Runtime installation guide](https://onnxruntime.ai/docs/install/)
 
 ## Optional Qwen integration
 
@@ -63,7 +61,7 @@ Use the exact model tag exposed by your server. Set up and start the server sepa
 
 SQLite FTS5 returns the initial keyword matches. Ranking takes filenames and word order into account, including phrases with small gaps. For screenshots, matching neighboring words can help the search tolerate a small OCR error. File type hints narrow the results. Source code files can be found by name. PDF content is searchable when the file has a text layer.
 
-With E5 installed, the app adds filenames and excerpts that are similar in meaning to the query. When enabled, Qwen suggests translations for individual search terms. The app combines the ranked results. Click **Original Words Only** (`Только исходные слова`) to return to the initial keyword results.
+With E5 installed, the app adds filenames and excerpts that are similar in meaning to the query. When enabled, Qwen suggests translations for individual search terms. The app combines the ranked results. Click **Original Words Only** to return to the initial keyword results.
 
 Index updates process new and changed files. Identical excerpts share a stored embedding.
 

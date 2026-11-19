@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -45,6 +46,17 @@ class Scenarios(unittest.TestCase):
             with patch.object(app.Gio.AppInfo,"launch_default_for_uri",return_value=True) as launch:
                 self.assertTrue(app.open_file(row["path"]))
                 launch.assert_called_once_with(file.as_uri(),None)
+
+    def test_english_screenshot_query_filters_other_files(self):
+        self.note.write_text("# Minecraft crash logs\nMinecraft crash logs and fatal exceptions.")
+        c.refresh(self.db, [self.root])
+        query = "Could you find me a screenshot with Minecraft crash logs?"
+        self.assertEqual(c.tokens(query), ["minecraft", "crash", "log"])
+        rows = c.search(self.db, query)
+        self.assertEqual([row["path"] for row in rows], [str(self.pic)])
+        self.assertFalse(rows[0]["weak"])
+        self.assertEqual(c.requested_types("find PDFs about image processing"), {"pdf"})
+        self.assertEqual(c.requested_types("show me pictures with error messages"), c.IMAGES)
 
     def test_incremental(self):
         self.note.write_text("Архитектура процессора")
@@ -151,3 +163,15 @@ class PublicSettings(unittest.TestCase):
             client.assert_called_once_with("127.0.0.1", 11434, timeout=12)
             self.assertEqual(conn.request.call_args.args[:2], ("POST", "/v1/chat/completions"))
             conn.close.assert_called_once()
+
+
+    def test_english_query_can_be_translated(self):
+        options = {"base_url": "http://127.0.0.1:11434/v1", "model": "test"}
+        with patch.object(app.qwen.http.client, "HTTPConnection") as client:
+            response = client.return_value.getresponse.return_value
+            response.status = 200
+            response.read.return_value = json.dumps({
+                "choices": [{"message": {"content": '{"1":"цепочка поставок"}'}}]
+            }).encode("utf-8")
+            aliases, _ = app.qwen.expand("Please find a file with supply chain metrics", options, lambda _: None)
+        self.assertEqual(aliases, {"supply chain metrics": ["цепочка поставок"]})

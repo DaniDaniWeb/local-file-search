@@ -11,17 +11,17 @@ import vectors
 
 EXAMPLES = {
     "repair.md": "# Bicycle puncture repair\nRemove the wheel, find the hole in the inner tube and apply a patch.",
-    "plants.md": "# Домашние растения\nЛетом проверяйте влажность земли перед поливом.",
+    "plants.md": "# Houseplants\nCheck the soil moisture before watering.",
     "budget.md": "# Monthly budget\nTrack grocery costs and recurring expenses.",
 }
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--semantic", action="store_true", help="Использовать установленную E5")
+    parser.add_argument("--semantic", action="store_true", help="Use the installed E5 model")
     args = parser.parse_args()
     if args.semantic and not encoder.available():
-        parser.error("Установи E5 и зависимости по README")
+        parser.error("Install E5 and its dependencies as described in the README")
     with TemporaryDirectory() as tmp:
         sources = Path(tmp) / "examples"
         sources.mkdir()
@@ -31,16 +31,16 @@ def main():
         catalog.refresh(db, [sources])
         if args.semantic:
             vectors.refresh(db)
-        cases = [("влажность земли", "plants.md"), ("repair.md", "repair.md")]
+        cases = [("soil moisture", "plants.md"), ("repair.md", "repair.md")]
         if args.semantic:
-            cases.append(("чем заклеить проколотую велосипедную камеру", "repair.md"))
+            cases.append(("how to patch a flat bike tire", "repair.md"))
         for query, expected in cases:
             lexical = catalog.search(db, query)
             semantic = vectors.search(db, query) if args.semantic else []
             result = hybrid.combine(query, lexical, semantic)
             actual = Path(result[0]["path"]).name if result else None
             if actual != expected:
-                raise SystemExit(f"{query!r}: ожидался {expected}, получен {actual}")
+                raise SystemExit(f"{query!r}: expected {expected}, got {actual}")
             print(f"{query} → {actual}")
 
 
